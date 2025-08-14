@@ -1,0 +1,60 @@
+version: 2
+
+sources:
+  - name: diabetes_readmission_dataset
+    database: diabetes-454412
+    schema: diabetes_dataset
+    tables:
+      - name: indices_data
+
+models:
+  - name: diabetes_readmission
+    description: |
+      Hospital records with 50 features of patients diagnosed with diabetes, who underwent laboratory, medications, and stayed up to 14 days.
+    columns:
+      - name: encounter_id
+      - name: patient_nbr
+      - name: race
+      - name: gender
+      - name: age
+      - name: weight
+      - name: admission_type_id
+      - name: discharge_disposition_id
+      - name: admission_source_id
+      - name: num_lab_procedures
+      - name: num_medications
+      - name: number_outpatient
+      - name: number_emergency
+      - name: number_inpatient
+      - name: diag_1
+      - name: diag_2
+      - name: diag_3
+      - name: number_diagnoses
+      - name: max_glu_serum
+      - name: A1Cresult
+      - name: metformin
+      - name: repaglinide
+      - name: nateglinide
+      - name: chlorpropamide
+      - name: glimepiride
+      - name: acetohexamide
+      - name: glipizide
+      - name: glyburide
+      - name: tolbutamide
+      - name: pioglitazone
+      - name: rosiglitazone
+      - name: acarbose
+      - name: miglitol
+      - name: troglitazone
+      - name: tolazamide
+      - name: examide
+      - name: citoglipton
+      - name: insulin
+      - name: glyburide-metformin
+      - name: glipizide-metformin
+      - name: glimepiride-pioglitazone
+      - name: metformin-rosiglitazone
+      - name: etformin-pioglitazone
+      - name: change
+      - name: diabetesMed
+      - name: readmitted
