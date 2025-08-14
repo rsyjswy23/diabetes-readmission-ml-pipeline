@@ -1,0 +1,49 @@
+id: load_data_gcs
+namespace: diabetes
+
+inputs:
+  - id: datatype
+    type: SELECT
+    displayName: Select data type
+
+variables:
+  file: "{{inputs.datatype}}_data.csv"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/{{vars.file}}"
+  data: "{{outputs.fetch_data.outputFiles[inputs.datatype ~ '_data.csv']}}"
+
+tasks:
+  - id: fetch_data
+    type: io.kestra.plugin.scripts.python.Script
+    docker:
+      image: python:slim
+    warningOnStdErr: false
+    script: |
+      import os
+      import pandas as pd
+      data = data.get_series('{{inputs.datatype}}')
+
+      df = pd.DataFrame(data, columns=["{{inputs.datatype}}"])
+      df.index.name = "patientID"
+      df.reset_index(inplace=True)
+      df.to_csv("{{vars.file}}", index=False)
+
+    outputFiles:
+      - "{{vars.file}}"
+
+  - id: upload_to_gcs
+    type: io.kestra.plugin.gcp.gcs.Upload
+    from: "{{render(vars.data)}}"
+    to: "{{render(vars.gcs_file)}}"
+
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+    description: If you'd like to explore Kestra outputs, disable it.
+    disabled: false
+
+pluginDefaults:
+  - type: io.kestra.plugin.gcp
+    values:
+      serviceAccount: "{{ secret('GCP_SERVICE_ACCOUNT') }}"
+      projectId: "{{kv('GCP_PROJECT_ID')}}"
+      location: "{{kv('GCP_LOCATION')}}"
+      bucket: "{{kv('GCP_BUCKET_NAME')}}"
