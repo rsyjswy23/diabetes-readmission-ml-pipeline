@@ -33,6 +33,91 @@ This project implements an end-to-end data pipeline to predict 30-day hospital r
 
 ---
 
+## Implementation ##
+
+#### Create Cloud Composer environment  
+```bash
+export PROJECT_ID="your-gcp-project"
+export REGION="your-region"
+export ENV_NAME="composer-env"
+
+gcloud composer environments create $ENV_NAME \
+    --location $REGION \
+    --image-version composer-2.11.5-airflow-2.10.2 \
+    --project $PROJECT_ID
+```
+## Data Lake: Google Cloud Storage 
+The dataset is downloaded from Kaggle and stored in a Google Cloud Storage bucket using Airflow.  
+#### Code Snippet
+```python
+def create_bucket(bucket_name, gcp_conn_id=GCP_CONN_ID):
+    hook = GCSHook(gcp_conn_id=gcp_conn_id)
+    hook.create_bucket(bucket_name=bucket_name)
+
+def upload_file(bucket_name, source_file, gcp_conn_id=GCP_CONN_ID):
+    hook = GCSHook(gcp_conn_id=gcp_conn_id)
+    destination_blob = os.path.basename(source_file)
+    hook.upload(
+        bucket_name=bucket_name,
+        object_name=destination_blob,
+        filename=source_file
+    )
+    return f"gs://{bucket_name}/{destination_blob}"
+```
+## Data Warehouse: BigQuery
+The CSV file stored in Google Cloud Storage is loaded into a BigQuery table using Kestra.    
+#### Code Snippet
+```python
+# Initialize BigQuery client
+client = bigquery.Client(project=PROJECT_ID)
+# Configure the load job
+job_config = bigquery.LoadJobConfig(
+    source_format=bigquery.SourceFormat.CSV,
+    skip_leading_rows=1,  # skip header row
+    autodetect=True,       # automatically detect schema
+)
+# Load CSV from GCS into BigQuery
+load_job = client.load_table_from_uri(
+    GCS_URI,
+    f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}",
+    job_config=job_config
+)
+load_job.result()
+```
+
+## Data transformation: dbt in BigQuery 
+#### Identify functions on each layer:
+
+- **Staging layer:** 
+  1. Rename columns.
+  2. Handle missing values.
+  3. Initial data type casting
+  4. Standardize categorical values.
+
+- **Intermediate layer:** 
+  1. Convert text categories to numeric ranges.
+  2. Map lab results to ranges or categories.
+  3. Aggregate visit counts.
+
+- **Analytical layer:**
+  1. Encode categorical features: one-hot,label encoding.
+  2. Scaling.
+  3. Prepare target variable.
+
+#### Build and Run the dbt transformations
+```bash
+dbt build --select patient_features.sql
+dbt run
+```
+This process materializes the transformed data as a table in BigQuery, ready for analysis in Looker Studio.
+
+## Data Visulization in Looker Studio
+<div align="center">
+  <img src="images/dashboard.jpg" width="100%">
+</div>
+
+---
+
 ## Dateset for ML Model ##
 
 The dataset represents 10 years (1999-2008) of clinical care at 130 US hospitals and integrated delivery networks. It includes over 50 features representing patient and hospital outcomes.
@@ -130,86 +215,3 @@ https://archive.ics.uci.edu/ml/datasets/Diabetes+130-US+hospitals+for+years+1999
   <div align="center">
   <img src="images/best.jpg" width="100%">
   </div>
-
-## Implementation ##
-
-#### Create Cloud Composer environment  
-```bash
-export PROJECT_ID="your-gcp-project"
-export REGION="your-region"
-export ENV_NAME="composer-env"
-
-gcloud composer environments create $ENV_NAME \
-    --location $REGION \
-    --image-version composer-2.11.5-airflow-2.10.2 \
-    --project $PROJECT_ID
-```
-## Data Lake: Google Cloud Storage 
-The dataset is downloaded from Kaggle and stored in a Google Cloud Storage bucket using Airflow.  
-#### Code Snippet
-```python
-def create_bucket(bucket_name, gcp_conn_id=GCP_CONN_ID):
-    hook = GCSHook(gcp_conn_id=gcp_conn_id)
-    hook.create_bucket(bucket_name=bucket_name)
-
-def upload_file(bucket_name, source_file, gcp_conn_id=GCP_CONN_ID):
-    hook = GCSHook(gcp_conn_id=gcp_conn_id)
-    destination_blob = os.path.basename(source_file)
-    hook.upload(
-        bucket_name=bucket_name,
-        object_name=destination_blob,
-        filename=source_file
-    )
-    return f"gs://{bucket_name}/{destination_blob}"
-```
-## Data Warehouse: BigQuery
-The CSV file stored in Google Cloud Storage is loaded into a BigQuery table using Kestra.    
-#### Code Snippet
-```python
-# Initialize BigQuery client
-client = bigquery.Client(project=PROJECT_ID)
-# Configure the load job
-job_config = bigquery.LoadJobConfig(
-    source_format=bigquery.SourceFormat.CSV,
-    skip_leading_rows=1,  # skip header row
-    autodetect=True,       # automatically detect schema
-)
-# Load CSV from GCS into BigQuery
-load_job = client.load_table_from_uri(
-    GCS_URI,
-    f"{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}",
-    job_config=job_config
-)
-load_job.result()
-```
-
-## Data transformation: dbt in BigQuery 
-#### Identify functions on each layer:
-
-- **Staging layer:** 
-  1. Rename columns.
-  2. Handle missing values.
-  3. Initial data type casting
-  4. Standardize categorical values.
-
-- **Intermediate layer:** 
-  1. Convert text categories to numeric ranges.
-  2. Map lab results to ranges or categories.
-  3. Aggregate visit counts.
-
-- **Analytical layer:**
-  1. Encode categorical features: one-hot,label encoding.
-  2. Scaling.
-  3. Prepare target variable.
-
-#### Build and Run the dbt transformations
-```bash
-dbt build --select patient_features.sql
-dbt run
-```
-This process materializes the transformed data as a table in BigQuery, ready for analysis in Looker Studio.
-
-## Data Visulization in Looker Studio
-<div align="center">
-  <img src="images/dashboard.jpg" width="100%">
-</div>
